@@ -1,0 +1,16 @@
+<resources>
+    <string name="app_name">ParkingSystem</string>
+    <string name="parking_title">Smart Parking Management</string>
+    <string name="available_spots">Available Spots</string>
+    <string name="occupied_spots">Occupied Spots</string>
+    <string name="spot_number">Spot %1$d</string>
+    <string name="available">Available</string>
+    <string name="occupied">Occupied</string>
+    <string name="fire_alert_title">⚠️ Fire Alert!</string>
+    <string name="fire_alert_message">Fire detected in the garage. Please evacuate immediately!</string>
+    <string name="dismiss">Dismiss</string>
+    <string name="test_fire_alert">Test Fire Alert</string>
+    <string name="simulate_data">Simulate Random Data</string>
+    <string name="total_spots">Total Spots: %1$d</string>
+    <string name="refresh">Refresh</string>
+</resources>

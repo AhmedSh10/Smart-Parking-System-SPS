@@ -1,69 +1,115 @@
 package com.example.parkingsystem.viewmodel
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.parkingsystem.bluetooth.BleDevice
+import com.example.parkingsystem.bluetooth.BluetoothManager
+import com.example.parkingsystem.bluetooth.ConnectionState
 import com.example.parkingsystem.model.ParkingSpot
 import com.example.parkingsystem.model.ParkingState
-
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlin.random.Random
 
 /**
- * ViewModel for managing parking system state
+ * ViewModel for managing parking system state and Bluetooth connection
  * 
- * This ViewModel handles:
- * - Parking spots status (available/occupied)
- * - Fire alert system
- * - Data simulation for testing
- * - Future: Bluetooth communication with sensors
+ * @property application Application context
  */
-class ParkingViewModel : ViewModel() {
-    
-    // Private mutable state
+class ParkingViewModel(application: Application) : AndroidViewModel(application) {
+
+    // Bluetooth manager
+    private val bluetoothManager = BluetoothManager(application)
+
+    // Parking state
     private val _parkingState = MutableStateFlow<ParkingState>(ParkingState.Loading)
-    
-    // Public immutable state for UI
-    val parkingState: StateFlow<ParkingState> = _parkingState.asStateFlow()
-    
+    val parkingState: StateFlow<ParkingState> = _parkingState
+
+    // Bluetooth states
+    val connectionState: StateFlow<ConnectionState> = bluetoothManager.connectionState
+    val discoveredDevices: StateFlow<List<BleDevice>> = bluetoothManager.discoveredDevices
+
+    // Flag to track if using real data
+    private var usingRealData = false
+
     init {
-        // Initialize with 5 parking spots (all available)
-        initializeParkingSpots()
-    }
-    
-    /**
-     * Initialize parking spots with default values
-     */
-    private fun initializeParkingSpots() {
+        // Load initial data
+        loadInitialData()
+
+        // Listen for Bluetooth data
         viewModelScope.launch {
-            // Simulate loading delay
-            delay(1000)
-            
-            val spots = List(5) { index ->
-                ParkingSpot(
-                    id = index + 1,
-                    isOccupied = false
-                )
+            bluetoothManager.parkingData.collect { data ->
+                data?.let {
+                    usingRealData = true
+                    updateStateFromBluetooth(it)
+                }
             }
-            
+        }
+    }
+
+    /**
+     * Load initial parking data
+     */
+    private fun loadInitialData() {
+        viewModelScope.launch {
+            _parkingState.value = ParkingState.Loading
+            delay(1000) // Simulate loading
+
+            val spots = (1..5).map { id ->
+                ParkingSpot(id = id, isOccupied = false)
+            }
+
             _parkingState.value = ParkingState.Success(
                 spots = spots,
                 fireAlertActive = false
             )
         }
     }
-    
+
     /**
-     * Update status of a specific parking spot
+     * Update parking state from Bluetooth data
      * 
-     * @param spotId ID of the spot to update (1-5)
-     * @param isOccupied New occupation status
+     * @param data Byte array containing sensor data
+     * Format: [Spot1, Spot2, Spot3, Spot4, Spot5, FireAlert]
+     * Each byte: 0 = Available/No Fire, 1 = Occupied/Fire
+     */
+    private fun updateStateFromBluetooth(data: ByteArray) {
+        val currentState = _parkingState.value
+        if (currentState is ParkingState.Success && data.size >= 6) {
+            val updatedSpots = currentState.spots.mapIndexed { index, spot ->
+                spot.copy(
+                    isOccupied = data[index] == 1.toByte(),
+                    lastUpdated = System.currentTimeMillis()
+                )
+            }
+
+            val fireAlert = data[5] == 1.toByte()
+
+            _parkingState.value = currentState.copy(
+                spots = updatedSpots,
+                fireAlertActive = fireAlert
+            )
+        }
+    }
+
+    /**
+     * Refresh parking data
+     */
+    fun refreshData() {
+        if (!usingRealData) {
+            loadInitialData()
+        }
+    }
+
+    /**
+     * Update a specific parking spot status (for testing)
      */
     fun updateSpotStatus(spotId: Int, isOccupied: Boolean) {
         val currentState = _parkingState.value
-        if (currentState is ParkingState.Success) {
+        if (currentState is ParkingState.Success && !usingRealData) {
             val updatedSpots = currentState.spots.map { spot ->
                 if (spot.id == spotId) {
                     spot.copy(
@@ -74,21 +120,38 @@ class ParkingViewModel : ViewModel() {
                     spot
                 }
             }
-            
+
             _parkingState.value = currentState.copy(spots = updatedSpots)
         }
     }
-    
+
     /**
-     * Trigger fire alert
+     * Simulate random parking data (for testing)
+     */
+    fun simulateRandomData() {
+        val currentState = _parkingState.value
+        if (currentState is ParkingState.Success && !usingRealData) {
+            val updatedSpots = currentState.spots.map { spot ->
+                spot.copy(
+                    isOccupied = Random.nextBoolean(),
+                    lastUpdated = System.currentTimeMillis()
+                )
+            }
+
+            _parkingState.value = currentState.copy(spots = updatedSpots)
+        }
+    }
+
+    /**
+     * Trigger fire alert (for testing)
      */
     fun triggerFireAlert() {
         val currentState = _parkingState.value
-        if (currentState is ParkingState.Success) {
+        if (currentState is ParkingState.Success && !usingRealData) {
             _parkingState.value = currentState.copy(fireAlertActive = true)
         }
     }
-    
+
     /**
      * Dismiss fire alert
      */
@@ -98,60 +161,70 @@ class ParkingViewModel : ViewModel() {
             _parkingState.value = currentState.copy(fireAlertActive = false)
         }
     }
-    
+
     /**
-     * Simulate random parking data for testing
-     * This will be replaced with actual Bluetooth data later
-     */
-    fun simulateRandomData() {
-        viewModelScope.launch {
-            val currentState = _parkingState.value
-            if (currentState is ParkingState.Success) {
-                val updatedSpots = currentState.spots.map { spot ->
-                    spot.copy(
-                        isOccupied = (0..1).random() == 1,
-                        lastUpdated = System.currentTimeMillis()
-                    )
-                }
-                
-                _parkingState.value = currentState.copy(spots = updatedSpots)
-            }
-        }
-    }
-    
-    /**
-     * Refresh parking data
-     * Future: This will fetch data from Bluetooth/sensors
-     */
-    fun refreshData() {
-        viewModelScope.launch {
-            // Simulate refresh delay
-            delay(500)
-            
-            // For now, just update timestamps
-            val currentState = _parkingState.value
-            if (currentState is ParkingState.Success) {
-                val updatedSpots = currentState.spots.map { spot ->
-                    spot.copy(lastUpdated = System.currentTimeMillis())
-                }
-                _parkingState.value = currentState.copy(spots = updatedSpots)
-            }
-        }
-    }
-    
-    /**
-     * Reset all parking spots to available
+     * Reset all parking spots to available (for testing)
      */
     fun resetAllSpots() {
         val currentState = _parkingState.value
-        if (currentState is ParkingState.Success) {
+        if (currentState is ParkingState.Success && !usingRealData) {
             val updatedSpots = currentState.spots.map { spot ->
                 spot.copy(
                     isOccupied = false,
                     lastUpdated = System.currentTimeMillis()
                 )
             }
-            _parkingState.value = currentState.copy(spots = updatedSpots)
+
+            _parkingState.value = currentState.copy(
+                spots = updatedSpots,
+                fireAlertActive = false
+            )
         }
+    }
+
+    // Bluetooth functions
+
+    /**
+     * Check if Bluetooth is enabled
+     */
+    fun isBluetoothEnabled(): Boolean {
+        return bluetoothManager.isBluetoothEnabled()
+    }
+
+    /**
+     * Start scanning for Bluetooth devices
+     */
+    fun startBluetoothScan() {
+        bluetoothManager.startScanning()
+    }
+
+    /**
+     * Stop scanning for Bluetooth devices
+     */
+    fun stopBluetoothScan() {
+        bluetoothManager.stopScanning()
+    }
+
+    /**
+     * Connect to a Bluetooth device
+     */
+    fun connectToDevice(deviceAddress: String) {
+        bluetoothManager.connectToDevice(deviceAddress)
+    }
+
+    /**
+     * Disconnect from current Bluetooth device
+     */
+    fun disconnectBluetooth() {
+        bluetoothManager.disconnect()
+        usingRealData = false
+    }
+
+    /**
+     * Clean up resources when ViewModel is cleared
+     */
+    override fun onCleared() {
+        super.onCleared()
+        bluetoothManager.cleanup()
     }
 }

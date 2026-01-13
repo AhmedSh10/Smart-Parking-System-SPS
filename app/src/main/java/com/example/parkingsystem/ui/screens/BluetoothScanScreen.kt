@@ -2,6 +2,7 @@ package com.example.parkingsystem.ui.screens
 
 import android.Manifest
 import android.os.Build
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
@@ -17,13 +18,14 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.parkingsystem.bluetooth.ConnectionState
-import com.example.parkingsystem.viewmodel.ParkingViewModel
 import com.example.parkingsystem.ui.components.DeviceListItem
+import com.example.parkingsystem.viewmodel.ParkingViewModel
 
 /**
  * Screen for scanning and connecting to BLE devices
@@ -41,13 +43,17 @@ fun BluetoothScanScreen(
 ) {
     val discoveredDevices by viewModel.discoveredDevices.collectAsState()
     val connectionState by viewModel.connectionState.collectAsState()
+    val context = LocalContext.current
     
     // Permission launcher
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
         if (permissions.values.all { it }) {
+            Toast.makeText(context, "Permissions granted, starting scan...", Toast.LENGTH_SHORT).show()
             viewModel.startBluetoothScan()
+        } else {
+            Toast.makeText(context, "Bluetooth permissions required!", Toast.LENGTH_LONG).show()
         }
     }
     
@@ -69,10 +75,25 @@ fun BluetoothScanScreen(
         permissionLauncher.launch(permissions)
     }
     
-    // Navigate back when connected
+    // Show toast messages for connection state changes
     LaunchedEffect(connectionState) {
-        if (connectionState is ConnectionState.Connected) {
-            onDeviceConnected()
+        when (connectionState) {
+            is ConnectionState.Connected -> {
+                val deviceName = (connectionState as ConnectionState.Connected).deviceName
+                Toast.makeText(context, "✅ Connected to $deviceName", Toast.LENGTH_LONG).show()
+                onDeviceConnected()
+            }
+            is ConnectionState.Connecting -> {
+                Toast.makeText(context, "⏳ Connecting...", Toast.LENGTH_SHORT).show()
+            }
+            is ConnectionState.Error -> {
+                val message = (connectionState as ConnectionState.Error).message
+                Toast.makeText(context, "❌ Error: $message", Toast.LENGTH_LONG).show()
+            }
+            is ConnectionState.Scanning -> {
+                Toast.makeText(context, "🔍 Scanning for devices...", Toast.LENGTH_SHORT).show()
+            }
+            else -> {}
         }
     }
     
@@ -98,7 +119,10 @@ fun BluetoothScanScreen(
                 },
                 actions = {
                     IconButton(
-                        onClick = { viewModel.startBluetoothScan() },
+                        onClick = { 
+                            viewModel.startBluetoothScan()
+                            Toast.makeText(context, "Refreshing...", Toast.LENGTH_SHORT).show()
+                        },
                         enabled = connectionState !is ConnectionState.Scanning
                     ) {
                         Icon(
@@ -140,9 +164,16 @@ fun BluetoothScanScreen(
                         CircularProgressIndicator()
                         Spacer(modifier = Modifier.height(16.dp))
                         Text(
-                            text = "Scanning for devices...",
+                            text = "Scanning for ALL Bluetooth devices...",
                             fontSize = 16.sp,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Make sure Bluetooth is enabled",
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
                         )
                     }
                 }
@@ -157,34 +188,36 @@ fun BluetoothScanScreen(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Bluetooth,
-                            contentDescription = "No Devices",
+                            contentDescription = null,
                             modifier = Modifier.size(64.dp),
                             tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
                         )
                         Spacer(modifier = Modifier.height(16.dp))
                         Text(
                             text = "No devices found",
-                            fontSize = 16.sp,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Medium,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "Make sure Bluetooth is enabled\nand the device is nearby",
+                            text = "Tap refresh to scan again",
                             fontSize = 14.sp,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
-                            textAlign = TextAlign.Center
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
                         )
                     }
                 }
             } else {
-                // Device list
+                // Device list header
                 Text(
-                    text = "Available Devices (${discoveredDevices.size})",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
+                    text = "Found ${discoveredDevices.size} device(s)",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                     modifier = Modifier.padding(bottom = 8.dp)
                 )
                 
+                // Devices
                 LazyColumn(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
@@ -192,7 +225,8 @@ fun BluetoothScanScreen(
                         DeviceListItem(
                             device = device,
                             onClick = {
-                                viewModel.connectToDevice(device.address)
+                                Toast.makeText(context, "Connecting to ${device.name}...", Toast.LENGTH_SHORT).show()
+                                viewModel.connectToDevice(device.device.toString())
                             }
                         )
                     }
@@ -212,8 +246,10 @@ private fun StatusCard(connectionState: ConnectionState) {
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
             containerColor = when (connectionState) {
-                is ConnectionState.Connected -> MaterialTheme.colorScheme.primaryContainer
-                is ConnectionState.Error -> MaterialTheme.colorScheme.errorContainer
+                is ConnectionState.Connected -> Color(0xFF4CAF50).copy(alpha = 0.1f)
+                is ConnectionState.Connecting -> Color(0xFF2196F3).copy(alpha = 0.1f)
+                is ConnectionState.Scanning -> Color(0xFF2196F3).copy(alpha = 0.1f)
+                is ConnectionState.Error -> Color(0xFFF44336).copy(alpha = 0.1f)
                 else -> MaterialTheme.colorScheme.surfaceVariant
             }
         )
@@ -228,37 +264,57 @@ private fun StatusCard(connectionState: ConnectionState) {
             Box(
                 modifier = Modifier
                     .size(12.dp)
-                    .padding(2.dp),
-                contentAlignment = Alignment.Center
+                    .padding(end = 8.dp)
             ) {
                 Surface(
-                    shape = RoundedCornerShape(50),
+                    modifier = Modifier.fillMaxSize(),
+                    shape = RoundedCornerShape(6.dp),
                     color = when (connectionState) {
                         is ConnectionState.Connected -> Color(0xFF4CAF50)
-                        is ConnectionState.Connecting -> Color(0xFFFFC107)
+                        is ConnectionState.Connecting -> Color(0xFF2196F3)
                         is ConnectionState.Scanning -> Color(0xFF2196F3)
                         is ConnectionState.Error -> Color(0xFFF44336)
                         else -> Color.Gray
-                    },
-                    modifier = Modifier.fillMaxSize()
+                    }
                 ) {}
             }
             
             Spacer(modifier = Modifier.width(12.dp))
             
             // Status text
-            Column {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "Status",
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    text = when (connectionState) {
+                        is ConnectionState.Connected -> "Connected"
+                        is ConnectionState.Connecting -> "Connecting..."
+                        is ConnectionState.Scanning -> "Scanning..."
+                        is ConnectionState.Disconnected -> "Disconnected"
+                        is ConnectionState.Error -> "Error"
+                    },
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = when (connectionState) {
+                        is ConnectionState.Connected -> Color(0xFF4CAF50)
+                        is ConnectionState.Connecting -> Color(0xFF2196F3)
+                        is ConnectionState.Scanning -> Color(0xFF2196F3)
+                        is ConnectionState.Error -> Color(0xFFF44336)
+                        else -> MaterialTheme.colorScheme.onSurface
+                    }
                 )
-                Text(
-                    text = connectionState.getStatusMessage(),
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
+                
+                if (connectionState is ConnectionState.Connected) {
+                    Text(
+                        text = "Device: ${connectionState.deviceName}",
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
+                } else if (connectionState is ConnectionState.Error) {
+                    Text(
+                        text = connectionState.message,
+                        fontSize = 14.sp,
+                        color = Color(0xFFF44336)
+                    )
+                }
             }
         }
     }

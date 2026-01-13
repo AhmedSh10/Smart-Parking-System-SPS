@@ -58,7 +58,7 @@ class ParkingViewModel(application: Application) : AndroidViewModel(application)
             _parkingState.value = ParkingState.Loading
             delay(1000) // Simulate loading
 
-            val spots = (1..5).map { id ->
+            val spots = (1..6).map { id ->
                 ParkingSpot(id = id, isOccupied = false)
             }
 
@@ -73,20 +73,24 @@ class ParkingViewModel(application: Application) : AndroidViewModel(application)
      * Update parking state from Bluetooth data
      * 
      * @param data Byte array containing sensor data
-     * Format: [Spot1, Spot2, Spot3, Spot4, Spot5, FireAlert]
+     * Format: [Spot1, Spot2, Spot3, Spot4, Spot5, Spot6, FireAlert]
      * Each byte: 0 = Available/No Fire, 1 = Occupied/Fire
      */
     private fun updateStateFromBluetooth(data: ByteArray) {
         val currentState = _parkingState.value
-        if (currentState is ParkingState.Success && data.size >= 6) {
+        if (currentState is ParkingState.Success && data.size >= 7) {
             val updatedSpots = currentState.spots.mapIndexed { index, spot ->
-                spot.copy(
-                    isOccupied = data[index] == 1.toByte(),
-                    lastUpdated = System.currentTimeMillis()
-                )
+                if (index < 6) {
+                    spot.copy(
+                        isOccupied = data[index] == 1.toByte(),
+                        lastUpdated = System.currentTimeMillis()
+                    )
+                } else {
+                    spot
+                }
             }
 
-            val fireAlert = data[5] == 1.toByte()
+            val fireAlert = data[6] == 1.toByte()
 
             _parkingState.value = currentState.copy(
                 spots = updatedSpots,

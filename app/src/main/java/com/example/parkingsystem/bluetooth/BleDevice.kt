@@ -1,5 +1,6 @@
 package com.example.parkingsystem.bluetooth
 
+import android.annotation.SuppressLint
 import android.bluetooth.BluetoothDevice
 
 /**
@@ -10,24 +11,13 @@ import android.bluetooth.BluetoothDevice
  * @property address The MAC address of the device
  * @property rssi Signal strength (RSSI value)
  */
+@SuppressLint("MissingPermission")
 data class BleDevice(
     val device: BluetoothDevice,
-    val name: String = run {
-        try {
-            device.name ?: "Unknown Device"
-        } catch (_: SecurityException) {
-            "Unknown Device"
-        }
-    },
-    val address: String = run {
-        try {
-            device.address
-        } catch (_: SecurityException) {
-            "Unknown"
-        }
-    },
+    val name: String = try { device.name ?: "Unknown Device" } catch (e: SecurityException) { "Unknown Device" },
+    val address: String = try { device.address } catch (e: SecurityException) { "Unknown Address" },
     val rssi: Int = 0
-) {
+){
     /**
      * Check if this device is likely the parking system
      */

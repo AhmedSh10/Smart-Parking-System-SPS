@@ -196,12 +196,12 @@ private fun SuccessContent(
             modifier = Modifier.padding(bottom = 12.dp)
         )
         
-        // Grid of parking spots
+        // Grid of parking spots (3 rows x 2 columns = 6 spots)
         LazyVerticalGrid(
             columns = GridCells.Fixed(2),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
-            modifier = Modifier.height(580.dp),
+            modifier = Modifier.height(600.dp),
             userScrollEnabled = false
         ) {
             items(state.spots) { spot ->

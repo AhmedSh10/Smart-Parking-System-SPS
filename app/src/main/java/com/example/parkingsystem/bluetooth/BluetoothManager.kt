@@ -6,7 +6,6 @@ import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanResult
 import android.content.Context
 import android.util.Log
-import com.example.parkingsystem.bluetooth.ConnectionState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import java.util.UUID
@@ -121,11 +120,11 @@ class BluetoothManager(private val context: Context) {
             characteristic: BluetoothGattCharacteristic
         ) {
             val data = characteristic.value
-            if (data != null && data.size >= 6) {
+            if (data != null && data.size >= 7) {
                 Log.d(TAG, "Data received: ${data.contentToString()}")
                 _parkingData.value = data
             } else {
-                Log.w(TAG, "Invalid data received: ${data?.contentToString()}")
+                Log.w(TAG, "Invalid data received (expected 7 bytes): ${data?.contentToString()}")
             }
         }
 
@@ -136,7 +135,7 @@ class BluetoothManager(private val context: Context) {
         ) {
             if (status == BluetoothGatt.GATT_SUCCESS) {
                 val data = characteristic.value
-                if (data != null && data.size >= 6) {
+                if (data != null && data.size >= 7) {
                     Log.d(TAG, "Data read: ${data.contentToString()}")
                     _parkingData.value = data
                 }

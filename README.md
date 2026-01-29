@@ -111,10 +111,10 @@ This project is available for educational and personal use.
 
 ## 👨‍💻 Developer
 
-**Ahmed Shaaban**
+**Ahmed Sherif**
 
 - GitHub: [@AhmedSh10](https://github.com/AhmedSh10)
-- LinkedIn: [Ahmed Shaaban](https://linkedin.com/in/ahmed-shaaban)
+- LinkedIn: [Ahmed Sherif](https://linkedin.com/in/dev-ahmed-sherif)
 
 ## 🙏 Acknowledgments
 
